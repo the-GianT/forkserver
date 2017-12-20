@@ -20,6 +20,7 @@ int main() {
     int f = fork();
     if (f) {
       remove("luigi");
+      printf("[server] handshake: removed wkp\n");
       close(from_client);
     }
     else {
@@ -32,7 +33,7 @@ void subserver(int from_client) {
   int to_client = server_connect(from_client);
   char buf[BUFFER_SIZE];
   while (read(from_client, buf, sizeof(buf))) {
-    printf("received from client: %s\n", buf);
+    printf("[subserver] received from client: %s\n", buf);
     process(buf);
     write(to_client, buf, sizeof(buf));
   }

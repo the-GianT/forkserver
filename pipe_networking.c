@@ -13,12 +13,13 @@
   =========================*/
 int server_setup() {
   int pd; // pipe descriptor
-  
+
   if (mkfifo("luigi", 0644) == -1) { // Well Known Pipe
     exit(EXIT_FAILURE);
   }
 
-  printf("Waiting for client...\n");
+  // printf("Waiting for client...\n");
+  printf("[server] handshake: making wkp\n");
   pd = open("luigi", O_RDONLY);
   if (pd == -1) {
     printf("Error: %s\n", strerror(errno));
@@ -26,7 +27,7 @@ int server_setup() {
     exit(EXIT_FAILURE);
   }
   
-  remove("WKP");
+  // remove("luigi");
   return pd;
 }
 
@@ -48,7 +49,8 @@ int server_connect(int from_client) {
     close(from_client);
     exit(EXIT_FAILURE);
   }
-  printf("pipe name received: %s\n", buf);
+  // printf("pipe name received: %s\n", buf);
+  printf("[subserver] handshake: received [%s]\n", buf);
   
   // Open the pipe whose name the server received from the client:
   int to_client = open(buf, O_WRONLY);
@@ -74,14 +76,14 @@ int server_connect(int from_client) {
   }
   
   if (strncmp(buf, ACK, sizeof(buf)) == 0) {
-    printf("Confirmation message received: \"%s\"\n", buf);
+    printf("[subserver] Confirmation message received: \"%s\"\n", buf);
   } else {
-    printf("Error: received message \"%s\" instead of confirmation message \"%s\".\n", buf, ACK);
+    printf("[subserver] Error: received message \"%s\" instead of confirmation message \"%s\".\n", buf, ACK);
     close(from_client);
     close(to_client);
     exit(EXIT_FAILURE);
   }
-  remove(buf);
+  // remove(buf);
   return to_client;
 }
 
@@ -136,6 +138,9 @@ int client_handshake(int *to_server) {
   int from_server;
   char buffer[HANDSHAKE_BUFFER_SIZE];
 
+  // Name of private pipe (will be pid of client)
+  char ppname[HANDSHAKE_BUFFER_SIZE];
+
   //send pp name to server
   printf("[client] handshake: connecting to wkp\n");
   *to_server = open( "luigi", O_WRONLY, 0);
@@ -143,19 +148,28 @@ int client_handshake(int *to_server) {
     exit(1);
 
   //make private pipe
-  sprintf(buffer, "%d", getpid() );
-  mkfifo(buffer, 0600);
+  sprintf(ppname, "%d", getpid() );
+  mkfifo(ppname, 0600);
 
-  write(*to_server, buffer, sizeof(buffer));
+  write(*to_server, ppname, sizeof(ppname));
 
   //open and wait for connection
-  from_server = open(buffer, O_RDONLY, 0);
+  from_server = open(ppname, O_RDONLY, 0);
   read(from_server, buffer, sizeof(buffer));
-  /*validate buffer code goes here */
-  printf("[client] handshake: received [%s]\n", buffer);
+  
+  /*validate buffer: */
+  if (strncmp(buffer, ACK, sizeof(buffer)) == 0) {
+    // printf("[subserver] Confirmation message received: \"%s\"\n", buf);
+    printf("[client] handshake: received [%s]\n", buffer);
+  } else {
+    printf("[client] Error: received message \"%s\" instead of confirmation message \"%s\".\n", buffer, ACK);
+    close(*to_server);
+    close(from_server);
+    exit(EXIT_FAILURE);
+  }
 
   //remove pp
-  remove(buffer);
+  remove(ppname);
   printf("[client] handshake: removed pp\n");
 
   //send ACK to server
