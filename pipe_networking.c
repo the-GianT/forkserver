@@ -14,16 +14,15 @@
 int server_setup() {
   int pd; // pipe descriptor
   
-  if (mkfifo("WKP", 0644) == -1) { // Well Known Pipe
-    printf("Error: %s\n", strerror(errno));
+  if (mkfifo("luigi", 0644) == -1) { // Well Known Pipe
     exit(EXIT_FAILURE);
   }
 
   printf("Waiting for client...\n");
-  pd = open("WKP", O_RDONLY);
+  pd = open("luigi", O_RDONLY);
   if (pd == -1) {
     printf("Error: %s\n", strerror(errno));
-    remove("WKP");
+    remove("luigi");
     exit(EXIT_FAILURE);
   }
   
@@ -52,25 +51,25 @@ int server_connect(int from_client) {
   printf("pipe name received: %s\n", buf);
   
   // Open the pipe whose name the server received from the client:
-  *to_client = open(buf, O_WRONLY);
-  if (*to_client == -1) {
+  int to_client = open(buf, O_WRONLY);
+  if (to_client == -1) {
     printf("Error: %s\n", strerror(errno));
     // remove("WKP");
     close(from_client);
     exit(EXIT_FAILURE);
   }
   
-  if (write(*to_client, ACK, sizeof(ACK)) == -1) {
+  if (write(to_client, ACK, sizeof(ACK)) == -1) {
     printf("Error: %s\n", strerror(errno));
-    close(pd);
-    close(*to_client);
+    close(from_client);
+    close(to_client);
     exit(EXIT_FAILURE);
   }
   
-  if (read(pd, buf, sizeof(buf)) == -1) {
+  if (read(from_client, buf, sizeof(buf)) == -1) {
     printf("Error: %s\n", strerror(errno));
-    close(pd);
-    close(*to_client);
+    close(from_client);
+    close(to_client);
     exit(EXIT_FAILURE);
   }
   
@@ -78,12 +77,12 @@ int server_connect(int from_client) {
     printf("Confirmation message received: \"%s\"\n", buf);
   } else {
     printf("Error: received message \"%s\" instead of confirmation message \"%s\".\n", buf, ACK);
-    close(pd);
-    close(*to_client);
+    close(from_client);
+    close(to_client);
     exit(EXIT_FAILURE);
   }
-  
-  return pd;
+  remove(buf);
+  return to_client;
 }
 
 /*=========================
